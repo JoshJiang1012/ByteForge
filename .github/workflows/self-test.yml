@@ -1,0 +1,94 @@
+name: ByteForge 5.0 self-test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  self-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Compile Python sources
+        run: python -m compileall -q server.py content
+
+      - name: Run all 100 reference solutions
+        run: python server.py --self-test
+
+      - name: Validate ByteForge 5.0 catalog
+        run: |
+          python - <<'PY'
+          from content.quests import QUESTS, public_quests
+
+          public = public_quests()
+          assert len(QUESTS) == len(public) == 100
+          assert [q["id"] for q in QUESTS] == list(range(1, 101))
+          assert sum(1 for q in QUESTS if q["boss"]) == 10
+          assert sum(1 for q in QUESTS if not q["boss"]) == 90
+          assert [q["id"] for q in QUESTS if q["boss"]] == list(range(10, 101, 10))
+          assert {q["mode"] for q in QUESTS} <= {"BLUE", "RED-VIEW", "PURPLE"}
+
+          expected_tracks = {
+              "Core", "Identity", "Host", "Web", "Network",
+              "Secrets", "Detection", "IR", "SecureCode", "Purple"
+          }
+          assert {q["track"] for q in QUESTS} == expected_tracks
+
+          required_zh = {
+              "title", "subtitle", "concept", "brief", "story",
+              "objectives", "hints", "syntax"
+          }
+          required_syntax = {
+              "title", "body", "example", "why", "try_it",
+              "command", "command_note", "steps"
+          }
+
+          for q in public:
+              assert q.get("difficulty")
+              assert q.get("function_signature")
+              assert q.get("visible_tests")
+              assert all("hidden" not in t for t in q["visible_tests"])
+              zh = q.get("i18n", {}).get("zh-Hant", {})
+              assert required_zh <= set(zh), (q["id"], required_zh - set(zh))
+              assert len(zh["objectives"]) == len(q["objectives"]), q["id"]
+              assert len(zh["hints"]) == len(q["hints"]), q["id"]
+              for lang_data in (q, zh):
+                  assert required_syntax <= set(lang_data["syntax"]), q["id"]
+
+          print("ByteForge 5.0 catalog: PASS — 100 missions = 90 labs + 10 bosses")
+          PY
+
+      - name: Validate editor alignment contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          css = Path("static/styles.css").read_text(encoding="utf-8")
+          html = Path("static/index.html").read_text(encoding="utf-8")
+          js = Path("static/app.js").read_text(encoding="utf-8")
+
+          assert '--editor-line:22px' in css
+          assert '#highlight-code,#highlight-code span' in css
+          assert 'font-variant-ligatures:none' in css.replace(' ', '')
+          assert 'font-feature-settings:"liga" 0,"calt" 0' in css
+          assert 'id="active-line"' in html
+          assert 'pop.textContent=""' in js.replace(' ', '')
+          print("Editor metric-lock contract: PASS")
+          PY
+
+      - name: Check browser JavaScript syntax
+        run: node --check static/app.js
