@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="ByteForge 5.0 — bilingual local white-hat cybersecurity learning RPG with 100 missions, 10 bosses, character-guided tutoring, and a performance-first editor." />
+  <title>ByteForge 5.0 · Cyber Academy</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body data-performance="on">
+  <div class="scene" aria-hidden="true"><i></i><i></i></div>
+  <div id="boot" class="boot-screen">
+    <div class="boot-card panel">
+      <div class="brand-glyph">BF</div>
+      <span class="eyebrow">BYTEFORGE ACADEMY · 5.0</span>
+      <h1>BYTEFORGE</h1>
+      <p data-i18n="bootConnecting">正在連線到本機 Cyber Range…</p>
+      <code id="boot-status">checking /api/health</code>
+    </div>
+  </div>
+
+  <div id="app" class="app-shell" hidden>
+    <header class="topbar">
+      <div class="brand"><div class="brand-glyph">BF</div><div><strong>BYTEFORGE 5.0</strong><span>CODE · LEARN · DEFEND</span></div></div>
+      <div class="top-actions">
+        <label class="perf-toggle"><span>⚡</span><b data-i18n="performanceMode">效能模式</b><input id="performance-toggle" type="checkbox" checked /><i></i></label>
+        <div class="language-switch"><button id="lang-zh" type="button">中文</button><button id="lang-en" type="button">EN</button></div>
+        <div class="player-chip"><span>FORGE CADET</span><b>LV <em id="player-level">1</em></b></div>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="left-rail panel">
+        <div class="rail-head"><span>CYBER ACADEMY</span><b id="quest-counter">0 / 100</b></div>
+        <section class="world-progress">
+          <div><b data-i18n="worldTitle">白帽資安 Cyber Range</b><small id="world-percent">0% secured</small></div>
+          <div class="meter"><i id="world-meter"></i></div>
+          <p data-i18n="continuousRule">前一關通過後下一關立即解鎖，沒有每日限制。</p>
+        </section>
+        <nav id="sector-nav" class="sector-nav" aria-label="Mission sectors"></nav>
+        <section class="compact-stats">
+          <div><span data-i18n="labsCleared">一般關卡</span><b id="labs-value">0 / 90</b></div>
+          <div><span data-i18n="bossesDefeated">擊敗 Boss</span><b id="boss-value">0 / 10</b></div>
+          <div><span>XP</span><b id="xp-current">0</b></div>
+        </section>
+        <section class="safety-note"><b data-i18n="rangeRuleTitle">RANGE 規則</b><p data-i18n="rangeRuleBody">所有任務只處理題目提供的模擬資料；Judge 已封鎖 import、檔案與網路存取。</p></section>
+      </aside>
+
+      <section class="main-column">
+        <section id="mission-panel" class="mission panel">
+          <div class="mission-topline">
+            <div class="mission-tags"><span id="mission-number">MISSION 01</span><span id="mission-track">CORE</span><span id="mission-mode" class="mode-chip" data-mode="BLUE">BLUE</span><span id="mission-difficulty" class="difficulty-chip">BEGINNER</span><span id="mission-xp">80 XP</span></div>
+            <button id="jump-editor" class="ghost-button" type="button" data-i18n="jumpToEditor">直接寫程式 →</button>
+          </div>
+          <div class="mission-title-row"><div><h1 id="mission-title">Loading…</h1><p id="mission-subtitle"></p></div><div id="boss-badge" class="boss-badge" hidden>BOSS</div></div>
+          <div class="clarity-grid">
+            <article class="goal-card"><span class="section-kicker" data-i18n="goal">GOAL</span><p id="mission-brief"></p></article>
+            <article class="contract-card"><span class="section-kicker" data-i18n="missionContract">MISSION CONTRACT</span><dl>
+              <div><dt data-i18n="functionLabel">Function</dt><dd id="contract-function">—</dd></div>
+              <div><dt data-i18n="testsLabel">Tests</dt><dd id="contract-tests">—</dd></div>
+              <div><dt data-i18n="conceptLabel">Core</dt><dd id="mission-concept">—</dd></div>
+            </dl></article>
+          </div>
+          <section class="objective-card"><div class="section-head"><span class="section-kicker" data-i18n="clearObjectives">CLEAR OBJECTIVES</span><b id="objective-state">0 / 0</b></div><div id="mission-objectives" class="objective-list"></div></section>
+          <section class="visible-tests-card"><div class="section-head"><span class="section-kicker" data-i18n="visibleChecks">VISIBLE CHECKS</span><b id="visible-check-count">0</b></div><div id="visible-tests" class="visible-tests"></div></section>
+          <section class="hint-zone"><div class="section-head"><div><span class="section-kicker" data-i18n="hintSystem">HINT SYSTEM</span><small data-i18n="hintPolicy">提示由方向到接近解法，逐層揭露。</small></div><button id="hint-button" type="button">顯示提示 1</button></div><div id="hint-list" class="hint-list"></div></section>
+        </section>
+
+        <section id="coding-panel" class="coding panel">
+          <div class="editor-head"><div class="editor-file"><span class="py-icon">PY</span><b id="file-name">mission_01.py</b><span>›</span><em id="editor-symbol">is_admin()</em></div><div class="editor-actions"><span data-i18n="editorShortcut">Ctrl + Enter 執行 · Tab 縮排</span><button id="reset-code" type="button" data-i18n="resetCode">重設程式</button></div></div>
+          <div class="editor-wrap"><div id="line-numbers" class="line-numbers" aria-hidden="true"></div><div id="editor-stage" class="editor-stage"><div id="active-line" class="active-line" aria-hidden="true"></div><pre id="highlight-layer" class="highlight-layer" aria-hidden="true"><code id="highlight-code"></code></pre><textarea id="code-editor" aria-label="Python code editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" wrap="off"></textarea><div id="typing-pop" class="typing-pop" aria-hidden="true"></div></div></div>
+          <div class="editor-statusbar"><div><span class="status-dot"></span><span>ByteForge Python</span></div><div><span id="cursor-position">Ln 1, Col 1</span><span>Spaces: 4</span><span>UTF-8</span><span>Python</span></div></div>
+          <div class="runbar"><span data-i18n="sandboxLabel">LOCAL PYTHON CYBER SANDBOX · import / file / network disabled</span><button id="run-button" type="button"><span>▶</span><b data-i18n="runTests">執行測試</b></button></div>
+        </section>
+        <section id="terminal" class="terminal panel"><div class="terminal-head"><span data-i18n="judgeOutput">JUDGE 輸出</span><b id="judge-state">READY</b></div><div id="terminal-content" class="terminal-content"></div></section>
+      </section>
+
+      <aside class="right-rail" aria-label="ByteForge mentor deck">
+        <section class="mentor-stage" aria-labelledby="lyra-name">
+          <div class="mentor-grid" aria-hidden="true"></div><div class="mentor-halo" aria-hidden="true"></div>
+          <div class="lyra-art" aria-hidden="true"><img src="/assets/characters/lyra-stage.webp" alt="" width="520" height="1044" decoding="async" /></div>
+          <div class="mentor-id"><span class="role role-teacher" data-i18n="liveTutor">LIVE TUTOR</span><h2 id="lyra-name">LYRA <span>CIRCUIT</span></h2><p id="lyra-line"></p></div>
+          <div class="mentor-pointer" aria-hidden="true"><i></i><b></b></div>
+          <div class="tutor-hud">
+            <section class="holo-pane syntax-pane"><span class="section-kicker" data-i18n="syntax">SYNTAX</span><h3 id="syntax-title">—</h3><p id="syntax-body"></p><pre id="syntax-example" class="mini-code"></pre></section>
+            <section class="holo-pane why-pane"><span class="section-kicker" data-i18n="whyItMatters">WHY IT MATTERS</span><p id="syntax-why"></p></section>
+            <section class="holo-pane recipe-pane"><span class="section-kicker" data-i18n="missionRecipe">MISSION RECIPE</span><ol id="syntax-steps"></ol></section>
+          </div>
+        </section>
+
+        <section id="boss-preview" class="boss-radar" aria-label="Upcoming boss">
+          <div class="boss-radar-art" aria-hidden="true"><img src="/assets/characters/warden-stage.webp" alt="" width="600" height="986" loading="lazy" decoding="async" /></div>
+          <div class="boss-radar-copy"><span class="role role-boss" data-i18n="upcomingEncounter">UPCOMING ENCOUNTER</span><h2>WARDEN NULL</h2><p id="boss-preview-text"></p><small id="boss-distance"></small></div>
+          <div class="boss-radar-line" aria-hidden="true"></div>
+        </section>
+
+        <section class="progress-card panel"><div class="section-head"><span class="section-kicker" data-i18n="skillTree">SKILL TREE</span><b>LIVE</b></div><div id="skill-tree"></div><button id="reset-progress" class="danger-ghost" type="button" data-i18n="resetProgress">重設所有本機進度</button></section>
+      </aside>
+    </main>
+
+    <div id="boss-presence" class="boss-presence" aria-hidden="true"><div class="boss-presence-grid"></div><img src="/assets/characters/warden-stage.webp" alt="" width="600" height="986" decoding="async" /><div class="boss-presence-lock">LOCKDOWN <span>WARDEN NULL</span></div></div>
+
+    <button id="patch-launcher" class="patch-launcher" type="button" aria-label="Open Patch support"><img src="/assets/characters/patch-thumb.webp" alt="" width="82" height="109" loading="lazy" decoding="async" /><span>PATCH</span><i></i></button>
+    <section id="patch-assist" class="patch-assist" aria-live="polite"><button id="patch-close" class="patch-close" type="button" aria-label="Close Patch support">×</button><div class="patch-art" aria-hidden="true"><img src="/assets/characters/patch-stage.webp" alt="" width="520" height="808" loading="lazy" decoding="async" /></div><div class="patch-dialogue"><span class="role role-npc">PATCH SUPPORT</span><h3 data-i18n="needFix">需要幫忙？</h3><p id="patch-message"></p><button id="ask-patch" type="button" data-i18n="askPatch">請 Patch 給下一個提示</button></div></section>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
