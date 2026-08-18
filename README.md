@@ -42,6 +42,10 @@ See [`COURSE.md`](COURSE.md) for the complete 100-mission list.
 
 All attack/defense exercises run against **synthetic inputs inside ByteForge's local learning sandbox**. RED-VIEW missions are recognition and classification exercises; they do not scan real systems, crack credentials, install persistence, deploy malware, or provide live-target exploitation capability.
 
+ByteForge also performs AST-based static checks before execution to reject sensitive capabilities such as imports, file access, dynamic evaluation, and dunder-based runtime access. The local server binds to `127.0.0.1` only.
+
+> **Windows resource-limit note:** Unix-like systems can additionally apply process resource limits through Python's `resource.setrlimit`. Windows does not provide that module, so ByteForge cannot currently enforce the same memory/CPU rlimits there. On Windows, the local Judge primarily relies on the **3-second execution timeout** plus the AST sandbox restrictions to stop runaway student code. This is suitable for the intended local learning environment, but it is **not a hardened security boundary for untrusted hostile code**.
+
 ## Requirements
 
 - Python 3.10+
