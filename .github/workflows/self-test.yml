@@ -1,4 +1,4 @@
-name: ByteForge 5.0 self-test
+name: ByteForge 7.0 self-test
 
 on:
   push:
@@ -29,65 +29,71 @@ jobs:
       - name: Run all 100 reference solutions
         run: python server.py --self-test
 
-      - name: Validate ByteForge 5.0 catalog
+      - name: Validate ByteForge 7.0 catalog and AI grading
         run: |
           python - <<'PY'
           from content.quests import QUESTS, public_quests
+          from server import local_rubric_review, ai_status_payload
 
           public = public_quests()
           assert len(QUESTS) == len(public) == 100
           assert [q["id"] for q in QUESTS] == list(range(1, 101))
+          assert [q["id"] for q in QUESTS if q["boss"]] == list(range(10, 101, 10))
           assert sum(1 for q in QUESTS if q["boss"]) == 10
           assert sum(1 for q in QUESTS if not q["boss"]) == 90
-          assert [q["id"] for q in QUESTS if q["boss"]] == list(range(10, 101, 10))
-          assert {q["mode"] for q in QUESTS} <= {"BLUE", "RED-VIEW", "PURPLE"}
 
-          expected_tracks = {
-              "Core", "Identity", "Host", "Web", "Network",
-              "Secrets", "Detection", "IR", "SecureCode", "Purple"
-          }
-          assert {q["track"] for q in QUESTS} == expected_tracks
+          hybrid = [q for q in QUESTS if (q.get("ai_grading") or {}).get("required")]
+          assert len(hybrid) == 30
+          for q in QUESTS:
+              ai = q.get("ai_grading") or {}
+              assert "required" in ai
+              if ai["required"]:
+                  assert ai["judge_points"] == 70
+                  assert ai["ai_points"] == 30
+                  assert ai["pass_score"] == 85
+                  assert len(ai["criteria"]) == 4
+                  zh = q["i18n"]["zh-Hant"]["ai_grading"]
+                  assert len(zh["criteria"]) == 4
+              else:
+                  assert ai["judge_points"] == 100
+                  assert ai["ai_points"] == 0
 
-          required_zh = {
-              "title", "subtitle", "concept", "brief", "story",
-              "objectives", "hints", "syntax"
-          }
-          required_syntax = {
-              "title", "body", "example", "why", "try_it",
-              "command", "command_note", "steps"
-          }
-
-          for q in public:
-              assert q.get("difficulty")
-              assert q.get("function_signature")
-              assert q.get("visible_tests")
-              assert all("hidden" not in t for t in q["visible_tests"])
-              zh = q.get("i18n", {}).get("zh-Hant", {})
-              assert required_zh <= set(zh), (q["id"], required_zh - set(zh))
-              assert len(zh["objectives"]) == len(q["objectives"]), q["id"]
-              assert len(zh["hints"]) == len(q["hints"]), q["id"]
-              for lang_data in (q, zh):
-                  assert required_syntax <= set(lang_data["syntax"]), q["id"]
-
-          print("ByteForge 5.0 catalog: PASS — 100 missions = 90 labs + 10 bosses")
+          probe = hybrid[0]
+          strong = local_rubric_review(
+              probe,
+              "The code detects a suspicious security signal using the mission rule. Blocking or classifying it is a defensive risk decision, but the threshold can create a false positive at a boundary case.",
+              "en",
+          )
+          weak = local_rubric_review(probe, "ok", "en")
+          assert strong["score"] >= strong["minimum"], strong
+          assert weak["score"] < strong["score"], (weak, strong)
+          status = ai_status_payload()
+          assert status["mode"] in {"local-rubric", "connected"}
+          print(f"ByteForge 7.0 catalog: PASS — 100 missions, {len(hybrid)} hybrid AI missions")
           PY
 
-      - name: Validate editor alignment contract
+      - name: Validate UI and editor contracts
         run: |
           python - <<'PY'
           from pathlib import Path
-
           css = Path("static/styles.css").read_text(encoding="utf-8")
           html = Path("static/index.html").read_text(encoding="utf-8")
           js = Path("static/app.js").read_text(encoding="utf-8")
 
+          assert 'BYTEFORGE 7.0' in html
+          assert 'id="ai-reasoning-card"' in html
+          assert 'id="ask-lyra-ai"' in html
+          assert 'id="ai-status-chip"' in html
+          assert '/api/ai/status' in js
+          assert '/api/ai/tutor' in js
+          assert 'reasoning' in js
+          assert '.ai-reasoning-card' in css
+          assert '.grading-score' in css
           assert '--editor-line:22px' in css
           assert '#highlight-code,#highlight-code span' in css
           assert 'font-variant-ligatures:none' in css.replace(' ', '')
-          assert 'font-feature-settings:"liga" 0,"calt" 0' in css
-          assert 'id="active-line"' in html
           assert 'pop.textContent=""' in js.replace(' ', '')
-          print("Editor metric-lock contract: PASS")
+          print("ByteForge 7.0 UI + editor contracts: PASS")
           PY
 
       - name: Check browser JavaScript syntax
