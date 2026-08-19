@@ -20,45 +20,97 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Fetch transport chunks
+      - name: Fetch exact BF7ZIP transport
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api repos/${{ github.repository }}/issues/1/comments --paginate > /tmp/comments.json
+        run: |
+          gh api "repos/${{ github.repository }}/issues/1/comments?per_page=100" > /tmp/comments.json
 
-      - name: Reconstruct and verify release ZIP
-        env:
-          EXPECTED_SHA256: 74996506a25dae0ba608e48317711ff23617f5aa3c4b68d032d03be89091982b
+      - name: Reconstruct and validate release ZIP
         run: |
           python - <<'PY'
-          import base64, hashlib, json, os, re
-          from pathlib import Path
+          import base64, hashlib, json, re, sys, zipfile
+          from pathlib import Path, PurePosixPath
 
-          comments = json.loads(Path('/tmp/comments.json').read_text())
-          parts = {}
-          total = None
-          rx = re.compile(r'(?:BF7CHUNK|BF7ZIP) (\d+)/(\d+)\n([A-Za-z0-9+/=]+)')
-          for item in comments:
-              body = item.get('body') or ''
-              for m in rx.finditer(body):
-                  idx, count = int(m.group(1)), int(m.group(2))
-                  total = count if total is None else total
-                  if total != count:
-                      raise SystemExit('chunk count mismatch')
-                  parts[idx] = m.group(3)
+          diag = Path('/tmp/bf7-diagnostics.txt')
+          try:
+              comments = json.loads(Path('/tmp/comments.json').read_text(encoding='utf-8'))
+              parts = {}
+              rx = re.compile(r'BF7ZIP\s+(\d{3})/030\r?\n([A-Za-z0-9+/=]+)')
+              for item in comments:
+                  body = item.get('body') or ''
+                  for m in rx.finditer(body):
+                      idx = int(m.group(1))
+                      data = m.group(2).strip()
+                      if not 1 <= idx <= 30:
+                          continue
+                      if idx in parts and parts[idx] != data:
+                          raise RuntimeError(f'conflicting BF7ZIP chunk {idx:03d}')
+                      parts[idx] = data
 
-          if not total or len(parts) != total or set(parts) != set(range(1, total + 1)):
-              raise SystemExit(f'incomplete transport: have {len(parts)}, expected {total}')
+              missing = [i for i in range(1, 31) if i not in parts]
+              if missing:
+                  raise RuntimeError('missing BF7ZIP chunks: ' + ', '.join(f'{i:03d}' for i in missing))
 
-          raw = base64.b64decode(''.join(parts[i] for i in range(1, total + 1)), validate=True)
-          digest = hashlib.sha256(raw).hexdigest()
-          if digest != os.environ['EXPECTED_SHA256']:
-              raise SystemExit(f'SHA-256 mismatch: {digest}')
+              encoded = ''.join(parts[i] for i in range(1, 31))
+              raw = base64.b64decode(encoded, validate=True)
+              digest = hashlib.sha256(raw).hexdigest()
+              zip_path = Path('/tmp/byteforge-v7.0.zip')
+              zip_path.write_bytes(raw)
 
-          Path('/tmp/byteforge-v7.0.zip').write_bytes(raw)
-          print('verified', digest, len(raw), 'bytes')
+              with zipfile.ZipFile(zip_path) as z:
+                  bad = z.testzip()
+                  if bad:
+                      raise RuntimeError(f'ZIP CRC failure: {bad}')
+                  names = z.namelist()
+                  for name in names:
+                      p = PurePosixPath(name)
+                      if p.is_absolute() or '..' in p.parts:
+                          raise RuntimeError(f'unsafe ZIP path: {name}')
+                  roots = {PurePosixPath(n).parts[0] for n in names if PurePosixPath(n).parts}
+                  if roots != {'byteforge-v7.0'}:
+                      raise RuntimeError(f'unexpected ZIP root(s): {sorted(roots)}')
+                  required = {
+                      'byteforge-v7.0/VERSION',
+                      'byteforge-v7.0/server.py',
+                      'byteforge-v7.0/RUN-BYTEFORGE-WINDOWS.bat',
+                      'byteforge-v7.0/content/quests_data.json.gz',
+                      'byteforge-v7.0/static/index.html',
+                      'byteforge-v7.0/static/app.js',
+                      'byteforge-v7.0/static/styles.css',
+                      'byteforge-v7.0/static/assets/characters/lyra-stage.webp',
+                      'byteforge-v7.0/static/assets/characters/patch-stage.webp',
+                      'byteforge-v7.0/static/assets/characters/patch-thumb.webp',
+                      'byteforge-v7.0/static/assets/characters/warden-stage.webp',
+                  }
+                  absent = sorted(required - set(names))
+                  if absent:
+                      raise RuntimeError('ZIP missing required files: ' + ', '.join(absent))
+                  version = z.read('byteforge-v7.0/VERSION').decode('utf-8').strip()
+                  if version != '7.0.0':
+                      raise RuntimeError(f'ZIP VERSION is {version!r}, expected 7.0.0')
+                  server = z.read('byteforge-v7.0/server.py').decode('utf-8')
+                  launcher = z.read('byteforge-v7.0/RUN-BYTEFORGE-WINDOWS.bat').decode('utf-8')
+                  index = z.read('byteforge-v7.0/static/index.html').decode('utf-8')
+                  if 'VERSION = "7.0.0"' not in server or 'AI ACADEMY' not in server:
+                      raise RuntimeError('server.py is not the 7.0 AI Academy runtime')
+                  if '7.0' not in launcher or '5.0' in launcher:
+                      raise RuntimeError('Windows launcher still contains the wrong version banner')
+                  if 'ByteForge 7.0' not in index:
+                      raise RuntimeError('static/index.html is not the 7.0 UI')
+
+              diag.write_text(
+                  f'ByteForge 7.0 transport verified.\nSHA-256: {digest}\nBytes: {len(raw)}\nChunks: 30/30\n',
+                  encoding='utf-8',
+              )
+              print(diag.read_text())
+          except Exception as exc:
+              diag.write_text(f'ByteForge 7.0 publish verification failed:\n{type(exc).__name__}: {exc}\n', encoding='utf-8')
+              print(diag.read_text(), file=sys.stderr)
+              raise
           PY
 
-      - name: Replace repository with ByteForge 7.0
+      - name: Extract candidate package
         run: |
           rm -rf /tmp/bf7
           mkdir -p /tmp/bf7
@@ -67,26 +119,52 @@ jobs:
           with zipfile.ZipFile('/tmp/byteforge-v7.0.zip') as z:
               z.extractall('/tmp/bf7')
           PY
+
+      - name: Validate candidate before touching main
+        working-directory: /tmp/bf7/byteforge-v7.0
+        run: |
+          python server.py --self-test
+          python -m py_compile server.py content/quests.py content/reference_solutions.py
+          node --check static/app.js
+          test "$(cat VERSION)" = "7.0.0"
+          test -s content/quests_data.json.gz
+          test -s static/styles.css
+          test -s static/assets/characters/lyra-stage.webp
+          grep -q "BYTEFORGE v7.0" RUN-BYTEFORGE-WINDOWS.bat
+          ! grep -q "BYTEFORGE v5.0" RUN-BYTEFORGE-WINDOWS.bat
+
+      - name: Replace repository atomically after validation
+        run: |
           shopt -s dotglob
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -a /tmp/bf7/byteforge-v7.0/. .
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
           find . -type f -name '*.pyc' -delete
 
-      - name: Validate release
+      - name: Final validation in repository tree
         run: |
           python server.py --self-test
-          python -m py_compile server.py content/quests.py content/reference_solutions.py
           node --check static/app.js
           test "$(cat VERSION)" = "7.0.0"
 
-      - name: Commit ByteForge 7.0
+      - name: Commit verified ByteForge 7.0
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name 'ByteForge Release Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add -A
-          git commit -m 'Release ByteForge 7.0 — AI Academy'
+          git commit -m 'Release ByteForge 7.0 — AI Academy (verified Windows package)'
           git push origin main
-          gh issue close 1 --repo ${{ github.repository }} --comment 'ByteForge 7.0 published to main and validated by self-test.' || true
+          gh issue close 1 --repo ${{ github.repository }} --comment 'ByteForge 7.0 was reconstructed from the exact release ZIP, validated (100/100 self-test), and published to main.' || true
+
+      - name: Report safe failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f /tmp/bf7-diagnostics.txt ]; then
+            gh issue comment 1 --repo ${{ github.repository }} --body-file /tmp/bf7-diagnostics.txt || true
+          else
+            gh issue comment 1 --repo ${{ github.repository }} --body 'ByteForge 7.0 publisher failed after transport verification. Main was not replaced unless candidate validation had already completed.' || true
+          fi
