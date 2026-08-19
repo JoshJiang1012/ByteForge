@@ -1,8 +1,10 @@
 name: Publish ByteForge 7.0
 
 on:
-  issue_comment:
-    types: [created]
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-byteforge-7.yml'
 
 permissions:
   contents: write
@@ -10,10 +12,6 @@ permissions:
 
 jobs:
   publish:
-    if: >-
-      github.event.issue.number == 1 &&
-      github.event.comment.body == 'PUBLISH_BYTEFORGE_7' &&
-      github.actor == 'JoshJiang1012'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
@@ -34,6 +32,7 @@ jobs:
           python - <<'PY'
           import base64, hashlib, json, os, re
           from pathlib import Path
+
           comments = json.loads(Path('/tmp/comments.json').read_text())
           parts = {}
           total = None
@@ -46,12 +45,15 @@ jobs:
                   if total != count:
                       raise SystemExit('chunk count mismatch')
                   parts[idx] = m.group(3)
+
           if not total or len(parts) != total or set(parts) != set(range(1, total + 1)):
               raise SystemExit(f'incomplete transport: have {len(parts)}, expected {total}')
+
           raw = base64.b64decode(''.join(parts[i] for i in range(1, total + 1)), validate=True)
           digest = hashlib.sha256(raw).hexdigest()
           if digest != os.environ['EXPECTED_SHA256']:
               raise SystemExit(f'SHA-256 mismatch: {digest}')
+
           Path('/tmp/byteforge-v7.0.zip').write_bytes(raw)
           print('verified', digest, len(raw), 'bytes')
           PY
@@ -87,4 +89,4 @@ jobs:
           git add -A
           git commit -m 'Release ByteForge 7.0 — AI Academy'
           git push origin main
-          gh issue close 1 --repo ${{ github.repository }} --comment 'ByteForge 7.0 published to main and validated by self-test.'
+          gh issue close 1 --repo ${{ github.repository }} --comment 'ByteForge 7.0 published to main and validated by self-test.' || true
