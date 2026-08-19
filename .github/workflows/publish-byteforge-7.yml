@@ -32,23 +32,21 @@ jobs:
           EXPECTED_SHA256: 74996506a25dae0ba608e48317711ff23617f5aa3c4b68d032d03be89091982b
         run: |
           python - <<'PY'
-          import base64, hashlib, json, os, re, sys
+          import base64, hashlib, json, os, re
           from pathlib import Path
 
           comments = json.loads(Path('/tmp/comments.json').read_text())
           parts = {}
           total = None
-          rx = re.compile(r'^BF7CHUNK (\d+)/(\d+)\n([A-Za-z0-9+/=\n]+)$')
+          rx = re.compile(r'BF7CHUNK (\d+)/(\d+)\n([A-Za-z0-9+/=]+)')
           for item in comments:
               body = item.get('body') or ''
-              m = rx.match(body.strip())
-              if not m:
-                  continue
-              idx, count = int(m.group(1)), int(m.group(2))
-              total = count if total is None else total
-              if total != count:
-                  raise SystemExit('chunk count mismatch')
-              parts[idx] = ''.join(m.group(3).split())
+              for m in rx.finditer(body):
+                  idx, count = int(m.group(1)), int(m.group(2))
+                  total = count if total is None else total
+                  if total != count:
+                      raise SystemExit('chunk count mismatch')
+                  parts[idx] = m.group(3)
           if not total or len(parts) != total or set(parts) != set(range(1, total + 1)):
               raise SystemExit(f'incomplete transport: have {len(parts)}, expected {total}')
           raw = base64.b64decode(''.join(parts[i] for i in range(1, total + 1)), validate=True)
