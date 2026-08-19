@@ -1,7 +1,7 @@
 """ByteForge 7.0 AI Academy mission catalog loader.
 
 The catalog prefers the compact gzip asset. GitHub/source archives that omit
-binary assets can fall back to the text-safe Base64 copy shipped beside it.
+binary assets can fall back to text-safe Base64 parts shipped beside it.
 """
 from __future__ import annotations
 
@@ -20,12 +20,17 @@ def _load_catalog():
         with gzip.open(_GZ, "rt", encoding="utf-8") as fh:
             return json.load(fh)
     if _B64.exists():
-        raw = base64.b64decode(_B64.read_text(encoding="ascii").strip(), validate=True)
+        encoded = _B64.read_text(encoding="ascii").strip()
+    else:
+        parts = sorted(_HERE.glob("quests_data.json.gz.b64.part*"))
+        encoded = "".join(p.read_text(encoding="ascii").strip() for p in parts)
+    if encoded:
+        raw = base64.b64decode(encoded, validate=True)
         with gzip.open(io.BytesIO(raw), "rt", encoding="utf-8") as fh:
             return json.load(fh)
     raise FileNotFoundError(
         "ByteForge mission data is missing. Expected content/quests_data.json.gz "
-        "or content/quests_data.json.gz.b64. Re-download the complete ByteForge 7.0 release."
+        "or the text-safe quests_data.json.gz.b64(.part*) fallback. Re-download the complete ByteForge 7.0 release."
     )
 
 QUESTS = _load_catalog()
