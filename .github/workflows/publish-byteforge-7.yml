@@ -29,78 +29,122 @@ jobs:
       - name: Reconstruct and validate release ZIP
         run: |
           python - <<'PY'
-          import base64, hashlib, json, re, sys, zipfile
+          import base64, hashlib, itertools, json, re, sys, zipfile
+          from io import BytesIO
           from pathlib import Path, PurePosixPath
 
           diag = Path('/tmp/bf7-diagnostics.txt')
           try:
               comments = json.loads(Path('/tmp/comments.json').read_text(encoding='utf-8'))
-              parts = {}
+              candidates = {i: [] for i in range(1, 31)}
               rx = re.compile(r'BF7ZIP\s+(\d{3})/030\r?\n([A-Za-z0-9+/=]+)')
               for item in comments:
                   body = item.get('body') or ''
                   for m in rx.finditer(body):
                       idx = int(m.group(1))
-                      data = m.group(2).strip()
                       if not 1 <= idx <= 30:
                           continue
-                      if idx in parts and parts[idx] != data:
-                          raise RuntimeError(f'conflicting BF7ZIP chunk {idx:03d}')
-                      parts[idx] = data
+                      data = m.group(2).strip()
+                      if data not in candidates[idx]:
+                          candidates[idx].append(data)
 
-              missing = [i for i in range(1, 31) if i not in parts]
+              missing = [i for i, values in candidates.items() if not values]
               if missing:
                   raise RuntimeError('missing BF7ZIP chunks: ' + ', '.join(f'{i:03d}' for i in missing))
 
-              encoded = ''.join(parts[i] for i in range(1, 31))
-              raw = base64.b64decode(encoded, validate=True)
-              digest = hashlib.sha256(raw).hexdigest()
+              conflicts = {i: len(v) for i, v in candidates.items() if len(v) > 1}
+              variants = 1
+              for count in conflicts.values():
+                  variants *= count
+              if variants > 4096:
+                  raise RuntimeError(f'too many conflicting transport combinations: {variants}')
+
+              # Newest comment candidate first. We never trust ordering alone: every
+              # candidate combination must pass ZIP CRC + ByteForge 7.0 structure.
+              option_lists = [list(reversed(candidates[i])) for i in range(1, 31)]
+
+              required = {
+                  'byteforge-v7.0/VERSION',
+                  'byteforge-v7.0/server.py',
+                  'byteforge-v7.0/RUN-BYTEFORGE-WINDOWS.bat',
+                  'byteforge-v7.0/content/quests_data.json.gz',
+                  'byteforge-v7.0/static/index.html',
+                  'byteforge-v7.0/static/app.js',
+                  'byteforge-v7.0/static/styles.css',
+                  'byteforge-v7.0/static/assets/characters/lyra-stage.webp',
+                  'byteforge-v7.0/static/assets/characters/patch-stage.webp',
+                  'byteforge-v7.0/static/assets/characters/patch-thumb.webp',
+                  'byteforge-v7.0/static/assets/characters/warden-stage.webp',
+              }
+
+              def validate_raw(raw: bytes):
+                  if not (200_000 <= len(raw) <= 2_000_000):
+                      raise RuntimeError(f'unexpected ZIP size: {len(raw)}')
+                  with zipfile.ZipFile(BytesIO(raw)) as z:
+                      bad = z.testzip()
+                      if bad:
+                          raise RuntimeError(f'ZIP CRC failure: {bad}')
+                      names = z.namelist()
+                      for name in names:
+                          p = PurePosixPath(name)
+                          if p.is_absolute() or '..' in p.parts:
+                              raise RuntimeError(f'unsafe ZIP path: {name}')
+                      roots = {PurePosixPath(n).parts[0] for n in names if PurePosixPath(n).parts}
+                      if roots != {'byteforge-v7.0'}:
+                          raise RuntimeError(f'unexpected ZIP root(s): {sorted(roots)}')
+                      absent = sorted(required - set(names))
+                      if absent:
+                          raise RuntimeError('ZIP missing required files: ' + ', '.join(absent))
+                      version = z.read('byteforge-v7.0/VERSION').decode('utf-8').strip()
+                      server = z.read('byteforge-v7.0/server.py').decode('utf-8')
+                      launcher = z.read('byteforge-v7.0/RUN-BYTEFORGE-WINDOWS.bat').decode('utf-8')
+                      index = z.read('byteforge-v7.0/static/index.html').decode('utf-8')
+                      if version != '7.0.0':
+                          raise RuntimeError(f'ZIP VERSION is {version!r}')
+                      if 'VERSION = "7.0.0"' not in server or 'AI ACADEMY' not in server:
+                          raise RuntimeError('server.py is not the 7.0 AI Academy runtime')
+                      if '7.0' not in launcher or '5.0' in launcher:
+                          raise RuntimeError('Windows launcher has the wrong version banner')
+                      if 'ByteForge 7.0' not in index:
+                          raise RuntimeError('static/index.html is not the 7.0 UI')
+
+              # Avoid a full 30-dimensional product: only conflicting indices vary.
+              conflict_ids = sorted(conflicts)
+              base = {i: option_lists[i - 1][0] for i in range(1, 31)}
+              conflict_options = [option_lists[i - 1] for i in conflict_ids]
+              attempts = 0
+              failures = []
+              selected_raw = None
+              selected_choice = None
+
+              for combo in itertools.product(*conflict_options) if conflict_ids else [()]:
+                  attempts += 1
+                  chosen = dict(base)
+                  for idx, value in zip(conflict_ids, combo):
+                      chosen[idx] = value
+                  try:
+                      encoded = ''.join(chosen[i] for i in range(1, 31))
+                      raw = base64.b64decode(encoded, validate=True)
+                      validate_raw(raw)
+                      selected_raw = raw
+                      selected_choice = {idx: candidates[idx].index(chosen[idx]) + 1 for idx in conflict_ids}
+                      break
+                  except Exception as exc:
+                      failures.append(f'{type(exc).__name__}: {exc}')
+
+              if selected_raw is None:
+                  tail = '; '.join(failures[-5:])
+                  raise RuntimeError(f'no valid 7.0 ZIP among {attempts} transport combinations; last errors: {tail}')
+
+              digest = hashlib.sha256(selected_raw).hexdigest()
               zip_path = Path('/tmp/byteforge-v7.0.zip')
-              zip_path.write_bytes(raw)
-
-              with zipfile.ZipFile(zip_path) as z:
-                  bad = z.testzip()
-                  if bad:
-                      raise RuntimeError(f'ZIP CRC failure: {bad}')
-                  names = z.namelist()
-                  for name in names:
-                      p = PurePosixPath(name)
-                      if p.is_absolute() or '..' in p.parts:
-                          raise RuntimeError(f'unsafe ZIP path: {name}')
-                  roots = {PurePosixPath(n).parts[0] for n in names if PurePosixPath(n).parts}
-                  if roots != {'byteforge-v7.0'}:
-                      raise RuntimeError(f'unexpected ZIP root(s): {sorted(roots)}')
-                  required = {
-                      'byteforge-v7.0/VERSION',
-                      'byteforge-v7.0/server.py',
-                      'byteforge-v7.0/RUN-BYTEFORGE-WINDOWS.bat',
-                      'byteforge-v7.0/content/quests_data.json.gz',
-                      'byteforge-v7.0/static/index.html',
-                      'byteforge-v7.0/static/app.js',
-                      'byteforge-v7.0/static/styles.css',
-                      'byteforge-v7.0/static/assets/characters/lyra-stage.webp',
-                      'byteforge-v7.0/static/assets/characters/patch-stage.webp',
-                      'byteforge-v7.0/static/assets/characters/patch-thumb.webp',
-                      'byteforge-v7.0/static/assets/characters/warden-stage.webp',
-                  }
-                  absent = sorted(required - set(names))
-                  if absent:
-                      raise RuntimeError('ZIP missing required files: ' + ', '.join(absent))
-                  version = z.read('byteforge-v7.0/VERSION').decode('utf-8').strip()
-                  if version != '7.0.0':
-                      raise RuntimeError(f'ZIP VERSION is {version!r}, expected 7.0.0')
-                  server = z.read('byteforge-v7.0/server.py').decode('utf-8')
-                  launcher = z.read('byteforge-v7.0/RUN-BYTEFORGE-WINDOWS.bat').decode('utf-8')
-                  index = z.read('byteforge-v7.0/static/index.html').decode('utf-8')
-                  if 'VERSION = "7.0.0"' not in server or 'AI ACADEMY' not in server:
-                      raise RuntimeError('server.py is not the 7.0 AI Academy runtime')
-                  if '7.0' not in launcher or '5.0' in launcher:
-                      raise RuntimeError('Windows launcher still contains the wrong version banner')
-                  if 'ByteForge 7.0' not in index:
-                      raise RuntimeError('static/index.html is not the 7.0 UI')
-
+              zip_path.write_bytes(selected_raw)
               diag.write_text(
-                  f'ByteForge 7.0 transport verified.\nSHA-256: {digest}\nBytes: {len(raw)}\nChunks: 30/30\n',
+                  'ByteForge 7.0 transport verified.\n'
+                  f'SHA-256: {digest}\nBytes: {len(selected_raw)}\nChunks: 30/30\n'
+                  f'Conflicting chunks: {conflicts or "none"}\n'
+                  f'Selected conflict candidates: {selected_choice or "none"}\n'
+                  f'Combinations tested: {attempts}\n',
                   encoding='utf-8',
               )
               print(diag.read_text())
