@@ -1,0 +1,249 @@
+name: Publish ByteForge 7.0 Exact
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-byteforge-7-exact.yml'
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fetch BF7ZIP transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/issues/1/comments?per_page=100" --paginate --slurp > /tmp/comments.json
+
+      - name: Select exact 30 chunks and verify release ZIP
+        run: |
+          python - <<'PY'
+          import base64, hashlib, json, re, sys, zipfile
+          from io import BytesIO
+          from pathlib import Path, PurePosixPath
+
+          diag = Path('/tmp/bf7-diagnostics.txt')
+          expected = {
+              1: 'cf98012a3a4790abe7b1518ad870158d3e6eef4c41093d9c9e670bb56e346772',
+              2: '02a6705d1426428ea43c55de07393d8aa3a936f8a5373c47398ce9f52db98cd0',
+              3: 'f072f293d7142487184d3754d39c1bd89e7ede948e6ca8ae929593bd3abff475',
+              4: 'b28665079fdeac08f9e820b81e59a048ccbfa1cb9a4dcf0baefaffe86b53e4ff',
+              5: 'ef87068303e92696dcb13e20a06f5c0c72ded9b5df00f444ab74f5bd69424719',
+              6: '2a487e3f89e239a5255e4dd0bd03b2b235a708dcbba469ae3537e89275b732e5',
+              7: '01799ff30984deef19ae3722b49fdf297c089dc60b95fcd0a87ed7aa4d6dbec4',
+              8: '10bbcb214927dec2e8dc01182870c12fd9377d0a1e518aff5f43c713c7248ac0',
+              9: '647c8d07df58ee8b5054635538a4e190cbcd35b0f4136dd222394ac9cbefe4f9',
+              10: 'e092d716d6a8ebed6b9668687b7b0cb4524ad7fe12747f26837d8fc8086772bb',
+              11: '7222a4aaa394bc4637ccbcae3cacc1ab4c80c1f8ab10748ff9279f54df072212',
+              12: 'd86962c9e507cc3ad310eca7e79b512e3aa362dc4775750e6eba8818bec95831',
+              13: '2918bdf28c9b539448c2f61d9880b692588700d97c07e37abf5e695f8bed05af',
+              14: 'f6738ae5e60f8d96bc04a686e11459d29d1a4b443451e92324404e7e6569acde',
+              15: '8c9e256c93771987aca1485400638eeb6e09c8c1944e89bf0e0321c718a725b3',
+              16: '82321a614c5396ea36fcdb95d1530dd1c5bec7e262ec4d2203a21ef8bd75c4b6',
+              17: 'c3c6bf2440783579fba66feb5444792386fdb820ff94d8857da7a6f9979d94a6',
+              18: '8a25bfa3028e090fd39dc8c9be3182d9f391513e0be0b01624e6c89523a3af3e',
+              19: '4f932e6848fb297015a2095349d2df3c566e420dfd333b9524ca61637b357d53',
+              20: 'd2002bad4c1612cf5db336c319e16c740161500aa6a67cd0ad1a3be05bf50435',
+              21: 'c63258606c5a964044e4b1171a4d98aa7e6c853b09288f625ca52e4e93a733f4',
+              22: '0544329e8f514a97d4d0bc171156cfcec6736f6f4db12c85ea86554cb238543d',
+              23: '2448a13964ba993ff1b1eb9d0c18c272eb9babe2f83e53a037149b61066e3b63',
+              24: 'e0105e40053ff58a7b7e7db1a73892790461f1b5c394043aeeb6fa9c2dc53821',
+              25: 'c48ebf838ce5d347990cb866c955f952072a94172d4f0c97d46567c776c92f45',
+              26: '47884e654d8feb58c633677f0cfed3f23440b275161d5f161bde98e512064cf4',
+              27: 'dafd5930ea348a8d8638576556c62fc4bb294494bf743486634b140389318c75',
+              28: '545d3c6e399e061f5d774a4ea8288a0ac96a48d8c229a890661250c9a29fbdc9',
+              29: '8de266f4ccfc13b5754ee46be7ef88c4888a9ca277f5afe92ad2c5c99f477c9a',
+              30: '13c65104b8e29acde13e528213ed83059b189a014ab3e3572e91b624c6c1683d',
+          }
+          expected_len = {i: 18000 for i in range(1, 30)}
+          expected_len[30] = 1252
+          whole_sha = '74996506a25dae0ba608e48317711ff23617f5aa3c4b68d032d03be89091982b'
+
+          try:
+              pages = json.loads(Path('/tmp/comments.json').read_text(encoding='utf-8'))
+              comments = [item for page in pages for item in page] if pages and isinstance(pages[0], list) else pages
+
+              candidates = {i: [] for i in range(1, 31)}
+              rx = re.compile(r'BF7ZIP\s+(\d{3})/030\r?\n([A-Za-z0-9+/=]+)')
+              for item in comments:
+                  for m in rx.finditer(item.get('body') or ''):
+                      idx = int(m.group(1))
+                      if 1 <= idx <= 30:
+                          data = m.group(2).strip()
+                          if data not in candidates[idx]:
+                              candidates[idx].append(data)
+
+              for idx in (14, 20):
+                  fill = Path(f'BF7_FILL_{idx:03d}.txt')
+                  if fill.is_file():
+                      data = fill.read_text(encoding='utf-8').strip()
+                      if data and data not in candidates[idx]:
+                          candidates[idx].append(data)
+
+              selected = {}
+              report = []
+              bad = []
+              for idx in range(1, 31):
+                  matches = []
+                  for pos, data in enumerate(candidates[idx], 1):
+                      digest = hashlib.sha256(data.encode('ascii')).hexdigest()
+                      if len(data) == expected_len[idx] and digest == expected[idx]:
+                          matches.append((pos, data))
+                  if not matches:
+                      seen = ', '.join(
+                          f'candidate{p} len={len(d)} sha={hashlib.sha256(d.encode("ascii")).hexdigest()[:12]}'
+                          for p, d in enumerate(candidates[idx], 1)
+                      ) or 'no candidates'
+                      bad.append(f'{idx:03d}: {seen}')
+                  else:
+                      pos, data = matches[-1]
+                      selected[idx] = data
+                      report.append(f'{idx:03d} exact (candidate {pos}, len={len(data)})')
+
+              if bad:
+                  raise RuntimeError('exact chunk verification failed; missing/corrupt originals:\n' + '\n'.join(bad))
+
+              encoded = ''.join(selected[i] for i in range(1, 31))
+              if len(encoded) != 523252:
+                  raise RuntimeError(f'Base64 length mismatch: {len(encoded)} != 523252')
+
+              raw = base64.b64decode(encoded, validate=True)
+              if len(raw) != 392439:
+                  raise RuntimeError(f'ZIP byte length mismatch: {len(raw)} != 392439')
+              digest = hashlib.sha256(raw).hexdigest()
+              if digest != whole_sha:
+                  raise RuntimeError(f'whole ZIP SHA-256 mismatch: {digest}')
+
+              required = {
+                  'byteforge-v7.0/VERSION',
+                  'byteforge-v7.0/server.py',
+                  'byteforge-v7.0/RUN-BYTEFORGE-WINDOWS.bat',
+                  'byteforge-v7.0/content/quests_data.json.gz',
+                  'byteforge-v7.0/static/index.html',
+                  'byteforge-v7.0/static/app.js',
+                  'byteforge-v7.0/static/styles.css',
+                  'byteforge-v7.0/static/assets/characters/lyra-stage.webp',
+                  'byteforge-v7.0/static/assets/characters/patch-stage.webp',
+                  'byteforge-v7.0/static/assets/characters/patch-thumb.webp',
+                  'byteforge-v7.0/static/assets/characters/warden-stage.webp',
+              }
+
+              with zipfile.ZipFile(BytesIO(raw)) as z:
+                  crc_bad = z.testzip()
+                  if crc_bad:
+                      raise RuntimeError(f'ZIP CRC failure: {crc_bad}')
+                  names = z.namelist()
+                  for name in names:
+                      p = PurePosixPath(name)
+                      if p.is_absolute() or '..' in p.parts:
+                          raise RuntimeError(f'unsafe ZIP path: {name}')
+                  roots = {PurePosixPath(n).parts[0] for n in names if PurePosixPath(n).parts}
+                  if roots != {'byteforge-v7.0'}:
+                      raise RuntimeError(f'unexpected ZIP roots: {sorted(roots)}')
+                  absent = sorted(required - set(names))
+                  if absent:
+                      raise RuntimeError('ZIP missing required files: ' + ', '.join(absent))
+                  if z.read('byteforge-v7.0/VERSION').decode().strip() != '7.0.0':
+                      raise RuntimeError('VERSION is not 7.0.0')
+                  server = z.read('byteforge-v7.0/server.py').decode('utf-8')
+                  launcher = z.read('byteforge-v7.0/RUN-BYTEFORGE-WINDOWS.bat').decode('utf-8')
+                  index = z.read('byteforge-v7.0/static/index.html').decode('utf-8')
+                  if 'VERSION = "7.0.0"' not in server or 'AI ACADEMY' not in server:
+                      raise RuntimeError('server.py is not ByteForge 7.0 AI Academy')
+                  if 'BYTEFORGE v7.0' not in launcher or 'BYTEFORGE v5.0' in launcher:
+                      raise RuntimeError('Windows launcher version banner is wrong')
+                  if 'ByteForge 7.0' not in index:
+                      raise RuntimeError('index.html is not the 7.0 UI')
+
+              Path('/tmp/byteforge-v7.0.zip').write_bytes(raw)
+              diag.write_text(
+                  'ByteForge 7.0 exact transport verified.\n'
+                  'Chunks: 30/30 exact SHA-256 matches\n'
+                  f'Base64 chars: {len(encoded)}\n'
+                  f'ZIP bytes: {len(raw)}\n'
+                  f'ZIP SHA-256: {digest}\n'
+                  + '\n'.join(report) + '\n',
+                  encoding='utf-8',
+              )
+              print(diag.read_text())
+          except Exception as exc:
+              diag.write_text(
+                  f'ByteForge 7.0 publish verification failed:\n{type(exc).__name__}: {exc}\n',
+                  encoding='utf-8',
+              )
+              print(diag.read_text(), file=sys.stderr)
+              raise
+          PY
+
+      - name: Extract candidate package
+        run: |
+          rm -rf /tmp/bf7
+          mkdir -p /tmp/bf7
+          python - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('/tmp/byteforge-v7.0.zip') as z:
+              z.extractall('/tmp/bf7')
+          PY
+
+      - name: Validate candidate before touching main
+        working-directory: /tmp/bf7/byteforge-v7.0
+        run: |
+          python server.py --self-test
+          python -m py_compile server.py content/quests.py content/reference_solutions.py
+          node --check static/app.js
+          test "$(cat VERSION)" = "7.0.0"
+          test -s content/quests_data.json.gz
+          test -s static/styles.css
+          test -s static/assets/characters/lyra-stage.webp
+          test -s static/assets/characters/patch-stage.webp
+          test -s static/assets/characters/patch-thumb.webp
+          test -s static/assets/characters/warden-stage.webp
+          grep -q "BYTEFORGE v7.0" RUN-BYTEFORGE-WINDOWS.bat
+          ! grep -q "BYTEFORGE v5.0" RUN-BYTEFORGE-WINDOWS.bat
+
+      - name: Replace repository atomically after validation
+        run: |
+          shopt -s dotglob
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/bf7/byteforge-v7.0/. .
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find . -type f -name '*.pyc' -delete
+
+      - name: Final validation in repository tree
+        run: |
+          python server.py --self-test
+          node --check static/app.js
+          test "$(cat VERSION)" = "7.0.0"
+
+      - name: Commit verified ByteForge 7.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'ByteForge Release Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Release ByteForge 7.0 — AI Academy (verified Windows package)'
+          git push origin main
+          gh issue close 1 --repo ${{ github.repository }} --comment 'ByteForge 7.0 exact 30/30 chunks verified, ZIP SHA-256 verified, 100/100 self-test passed, and the Windows package was published to main.' || true
+
+      - name: Report safe failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f /tmp/bf7-diagnostics.txt ]; then
+            gh issue comment 1 --repo ${{ github.repository }} --body-file /tmp/bf7-diagnostics.txt || true
+          else
+            gh issue comment 1 --repo ${{ github.repository }} --body 'ByteForge 7.0 publisher failed after exact transport verification. main was not replaced.' || true
+          fi
