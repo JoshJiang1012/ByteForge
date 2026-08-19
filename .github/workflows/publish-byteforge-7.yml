@@ -34,7 +34,6 @@ jobs:
           python - <<'PY'
           import base64, hashlib, json, os, re
           from pathlib import Path
-
           comments = json.loads(Path('/tmp/comments.json').read_text())
           parts = {}
           total = None
