@@ -38,7 +38,7 @@ jobs:
           comments = json.loads(Path('/tmp/comments.json').read_text())
           parts = {}
           total = None
-          rx = re.compile(r'BF7CHUNK (\d+)/(\d+)\n([A-Za-z0-9+/=]+)')
+          rx = re.compile(r'(?:BF7CHUNK|BF7ZIP) (\d+)/(\d+)\n([A-Za-z0-9+/=]+)')
           for item in comments:
               body = item.get('body') or ''
               for m in rx.finditer(body):
