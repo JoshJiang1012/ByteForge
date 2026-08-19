@@ -1,17 +1,34 @@
-"""ByteForge 5.0 mission catalog loader.
+"""ByteForge 7.0 AI Academy mission catalog loader.
 
-The 100-mission catalog is stored as compressed JSON to keep the runtime
-dependency-free while avoiding one enormous generated Python literal.
+The catalog prefers the compact gzip asset. GitHub/source archives that omit
+binary assets can fall back to the text-safe Base64 copy shipped beside it.
 """
 from __future__ import annotations
 
+import base64
 import gzip
+import io
 import json
 from pathlib import Path
 
-_DATA = Path(__file__).with_name("quests_data.json.gz")
-with gzip.open(_DATA, "rt", encoding="utf-8") as _fh:
-    QUESTS = json.load(_fh)
+_HERE = Path(__file__).resolve().parent
+_GZ = _HERE / "quests_data.json.gz"
+_B64 = _HERE / "quests_data.json.gz.b64"
+
+def _load_catalog():
+    if _GZ.exists():
+        with gzip.open(_GZ, "rt", encoding="utf-8") as fh:
+            return json.load(fh)
+    if _B64.exists():
+        raw = base64.b64decode(_B64.read_text(encoding="ascii").strip(), validate=True)
+        with gzip.open(io.BytesIO(raw), "rt", encoding="utf-8") as fh:
+            return json.load(fh)
+    raise FileNotFoundError(
+        "ByteForge mission data is missing. Expected content/quests_data.json.gz "
+        "or content/quests_data.json.gz.b64. Re-download the complete ByteForge 7.0 release."
+    )
+
+QUESTS = _load_catalog()
 
 assert len(QUESTS) == 100
 assert sum(1 for q in QUESTS if q["boss"]) == 10
