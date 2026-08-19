@@ -1,4 +1,62 @@
+## 7.0.0
+
+- Added AI Academy hybrid grading for 30 PURPLE / RED-VIEW missions.
+- Added optional connected LLM support through a Chat-Completions-compatible endpoint using only Python stdlib.
+- Added Lyra AI Tutor and Patch AI debugging.
+- Added 70-point deterministic Judge + 30-point reasoning rubric, with 85/100 clear threshold.
+- Added LOCAL RUBRIC fallback so the full course remains playable offline.
+- Hidden tests are never sent to the AI layer.
+- Preserved 6.4 responsive readability layout and editor fidelity fixes.
+
 # Changelog
+
+## 7.0.0 — AI Academy
+
+- Added hybrid AI-assisted grading to 30 RED-VIEW / PURPLE missions.
+- Deterministic Judge remains authoritative for executable correctness and sandbox safety.
+- Added 70/30 Judge + reasoning score display and fixed rubric feedback.
+- Added Lyra AI Tutor and Patch AI Debug endpoints/UI.
+- Added offline Local Rubric fallback and optional OpenAI-compatible connected LLM mode.
+- Added `/api/ai/status` and `/api/ai/tutor`.
+- Hidden tests are never sent to AI; API credentials stay server-side.
+- Preserved the 6.4 global readability and performance architecture.
+
+## 6.4.0
+- Rebuilt the full-page responsive layout around readability instead of fitting three columns at all costs.
+- Removed the right tutor rail's independent viewport-height scrollbar; tutor content now follows normal page flow.
+- Increased micro-UI text throughout missions, navigation, Judge output, and Lyra tutor cards.
+- At <=1760px the tutor deck moves below the main learning column instead of shrinking into a miniature dashboard.
+- Increased editor font and line height while preserving the 5.0 caret/highlight metric lock.
+
+## 6.3.0
+- Rebuilt Tutor structured rows as vertical flows to eliminate narrow-column overflow and giant row heights.
+- Isolated Lyra art inside a dedicated mentor header.
+- Removed clipping from tutor code examples and accordion bodies.
+
+## 6.2.0
+- Rebuilt tutor layout so all lesson content is full-width.
+- Confined Lyra artwork to the mentor header region.
+- Fixed narrow accordion and code clipping regressions.
+
+
+## 6.1.0
+
+- Fixed Lyra tutor accordion double-indentation that could compress teaching content into a narrow strip.
+- Increased the desktop mentor rail and reading column widths.
+- Rebalanced Lyra's crop so character art remains integrated without stealing tutor text space.
+- Added responsive breakpoints that move the tutor below the editor before readability degrades.
+- Added safe wrapping and small-screen stacking for syntax breakdown rows and code examples.
+- Preserved all 6.0 mission logic, simulated imports, Judge behavior, 100 missions, and local progress.
+
+## 6.0.0
+
+- Expanded every mission tutorial into structured, explicit syntax teaching.
+- Added exact pass-requirement panels.
+- Added safe AST-rewritten simulated imports (`hashlib`, `json`, `ipaddress`, `math`).
+- Added three dedicated simulated-import missions.
+- Added post-clear 3-example + 3-practice study lab for every mission.
+- Moved repeated sandbox wording into one Environment Note.
+- Preserved 100-mission / 10-boss progression and 5.0 editor alignment fix.
 
 ## 4.0.0 — Cyber Academy Update
 
@@ -42,21 +100,3 @@
 - VS Code-style live syntax highlighting and key-pop input feedback.
 - 中文 / English switching.
 - Existing 4.x local progress keys and saved drafts.
-
-## 5.0.0 — 100-Mission Cyber Range
-
-### Added
-- Replaced the old 55-mission catalog with a 100-mission sequential white-hat curriculum.
-- Added 10 sectors with 10 missions each; missions 10, 20, ..., 100 are boss encounters.
-- Added BLUE, RED-VIEW, and PURPLE mission perspectives using synthetic local data only.
-- Added full course map in `COURSE.md`.
-- Added 100 bundled reference solutions for release self-testing.
-
-### Changed
-- Reordered the curriculum around actual prerequisites: programming fundamentals → identity → Linux → Web → networking → secrets → detection → incident response → secure coding → purple-team integration.
-- Updated release verification to require all 100 reference solutions to pass the Judge.
-
-### Fixed
-- Fixed editor caret/highlight drift by enforcing identical font metrics across textarea, syntax layer, `<code>`, token spans, and line numbers.
-- Disabled font ligatures in the editor.
-- Replaced the character-shaped typing pop with a non-text pulse so typing feedback cannot be mistaken for an extra character or space.

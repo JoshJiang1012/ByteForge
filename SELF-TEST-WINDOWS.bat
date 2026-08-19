@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title ByteForge v5.0 Self Test
+title ByteForge v7.0 Self Test
 where py >nul 2>nul
 if %errorlevel%==0 (
   py -3 server.py --self-test

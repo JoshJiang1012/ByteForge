@@ -1,6 +1,6 @@
-# ByteForge 5.0 Characters
+# ByteForge 7.0 Characters
 
-ByteForge 5.0 keeps the **scene-integrated character system** introduced in 4.0.1 rather than returning to portrait cards. Character art is composited into the interface with crop, mask, shared lighting, foreground HUD layers, and state-driven presence instead of being shown as a rectangular poster.
+The character art-integration system introduced in ByteForge 4.0.1 changes the character system from **portrait cards** to **scene-integrated roles**. Character art is composited into the interface with crop, mask, shared lighting, foreground HUD layers, and state-driven presence instead of being shown as a rectangular poster.
 
 ## Lyra Circuit — Teacher
 Role: live tutor, syntax instructor, learning guide.
@@ -24,3 +24,10 @@ Role: recurring antagonist and checkpoint presence.
 Warden remains visible as a quiet boss radar between normal missions. During boss missions, ByteForge enters **Boss Mode**: the UI shifts toward violet/red protocol lighting, the teacher stage recedes, and Warden becomes a large interface-level presence instead of a banner card.
 
 Runtime asset: `static/assets/characters/warden-stage.webp`
+
+
+## 7.0 AI roles
+
+- **Lyra Circuit** can use the optional connected AI endpoint to explain the current concept and guide the learner toward the next step. Without a connected model she uses the local guided fallback.
+- **Patch** can use the same endpoint for debugging-focused feedback based on the current code and latest Judge error.
+- **Warden Null** remains a narrative/Boss presentation layer and is never used as an unrestricted model persona.

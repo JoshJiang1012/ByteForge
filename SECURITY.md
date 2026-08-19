@@ -1,17 +1,37 @@
-# Security Policy
+# ByteForge 7.0 Security Model
 
-## ByteForge 5.0 training boundary
+ByteForge is a **local educational sandbox**, not a hardened multi-tenant code-execution service.
 
-ByteForge is a **local synthetic cybersecurity learning range**. Missions teach defensive reasoning and secure coding against data supplied by the game.
+## Boundaries
 
-The bundled server binds to `127.0.0.1` and the learning Judge rejects imports and several capabilities that are unnecessary for mission solutions. It also runs player submissions in an isolated Python invocation with a short execution timeout and resource limits where the operating system supports them.
+- The HTTP server binds to `127.0.0.1` only.
+- Learner code is parsed with Python `ast` before execution.
+- File APIs, dynamic evaluation, dunder attribute access, sensitive process/network attributes, and other high-risk capabilities are rejected.
+- Code executes in a separate Python subprocess with a 3-second wall-clock timeout.
+- On Unix-like platforms, `resource.setrlimit` additionally constrains CPU, address space, and file size where supported.
+- On Windows, those Unix `resource` limits are unavailable; the local Judge mainly relies on the timeout plus AST restrictions.
 
-ByteForge's Judge is a learning guardrail, **not a hardened sandbox for arbitrary hostile code**. Do not expose the local Judge as an internet service and do not use it to execute untrusted submissions from other people.
+## Simulated imports
 
-## Scope
+6.0 accepts normal-looking `import` / `from ... import ...` syntax only for an explicit virtual allowlist. The AST transformer rewrites those nodes before execution so learner code never receives general module-loading capability.
 
-ByteForge missions must remain synthetic or authorized training exercises. Contributions should not add real-target scanning, credential theft, persistence, malware delivery, destructive behavior, or evasion features.
+Virtual modules:
 
-## Reporting a problem
+- `hashlib`: `sha256`
+- `json`: `loads`, `dumps`
+- `ipaddress`: `ip_address`
+- `math`: `ceil`, `floor`, `sqrt`, `log2`
 
-If you discover a bug that weakens the local training boundary, avoid publishing a working bypass immediately. Report the issue privately to the project maintainer when a private reporting channel is available.
+`import os`, relative imports, wildcard imports, and non-allowlisted names are rejected.
+
+## Intended use
+
+Use ByteForge for its bundled synthetic missions and learner-authored solutions to those missions. Do not treat it as an isolation boundary for intentionally hostile arbitrary code.
+
+## 7.0 AI boundary
+
+AI is downstream of the sandbox and deterministic Judge. It cannot override AST blocking or turn a failed code test into a pass.
+
+When a connected AI endpoint is configured, ByteForge sends only public mission context, learner code, learner reasoning, and the learner's question. Hidden tests are explicitly excluded. `BYTEFORGE_AI_KEY` remains server-side and is never returned to the browser.
+
+If the connected AI endpoint is unavailable, ByteForge falls back to its local deterministic reasoning rubric and guided tutor so the course remains usable offline.

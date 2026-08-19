@@ -1,10 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title ByteForge v5.0
+title ByteForge v7.0
 
 echo ============================================================
-echo  BYTEFORGE v5.0 - CYBER ACADEMY
+echo  BYTEFORGE v7.0 - AI ACADEMY
 echo ============================================================
 echo.
 echo This window IS the ByteForge local server.

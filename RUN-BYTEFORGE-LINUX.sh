@@ -3,7 +3,7 @@ set -u
 cd -- "$(dirname -- "$0")"
 
 echo "============================================================"
-echo " BYTEFORGE v5.0 - CYBER ACADEMY"
+echo " BYTEFORGE v7.0 - AI ACADEMY"
 echo "============================================================"
 echo
 echo "This terminal IS the ByteForge local server."

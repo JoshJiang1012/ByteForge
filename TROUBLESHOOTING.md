@@ -1,19 +1,13 @@
-# ByteForge 5.0 Troubleshooting
+# ByteForge 7.0 Troubleshooting
 
 ## Browser says connection refused
 
-The browser UI depends on the local Python server. Keep the launcher terminal open. Restart ByteForge and use the exact `OPEN:` URL printed in that terminal.
+Keep the launcher terminal open. ByteForge prints the exact local URL it successfully bound to. If port 3000 is busy it can fall back to another local port.
 
-ByteForge normally tries port 3000, then falls back automatically when that port is occupied.
-
-## Check server health
-
-With ByteForge running, open the printed URL and append `/api/health`. A healthy 5.0 server reports `ok: true`, version `5.0.0`, and `100` missions.
-
-## Run the full test suite
+## Run the full integrity check
 
 ```bash
-python3 server.py --self-test
+python server.py --self-test
 ```
 
 Expected final line:
@@ -22,10 +16,23 @@ Expected final line:
 Self-test: PASS — 100 quests
 ```
 
-## Syntax colors look misaligned
+## A simulated import is rejected
 
-Use a current Chrome, Edge, Firefox, or Safari build. The editor requires normal browser font/layout APIs but no extension. Browser zoom at unusual values can slightly change monospace metrics; 100% zoom is the best reference.
+Only the ByteForge virtual allowlist is accepted:
 
-## Typing animation is missing
+```text
+hashlib     sha256
+json        loads, dumps
+ipaddress   ip_address
+math        ceil, floor, sqrt, log2
+```
 
-ByteForge respects `prefers-reduced-motion`. If your operating system asks apps to reduce motion, the input pulse animation is intentionally disabled while syntax highlighting remains active.
+Arbitrary, wildcard, and relative imports are intentionally unavailable.
+
+## A mission says an import is required
+
+Missions 45, 53, and 61 deliberately teach simulated import syntax. Keep the required `import ...` or allowed `from ... import ...` statement in your solution.
+
+## Windows timeout
+
+Windows does not support Python's Unix `resource.setrlimit`. The Judge still uses AST restrictions and a 3-second execution timeout, but ByteForge is not intended to execute hostile untrusted programs.
