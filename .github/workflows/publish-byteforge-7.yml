@@ -222,3 +222,5 @@ jobs:
           else
             gh issue comment 1 --repo ${{ github.repository }} --body 'ByteForge 7.0 publisher failed after transport verification. The candidate was not published.' || true
           fi
+
+# retrigger: complete 30-chunk transport is staged
